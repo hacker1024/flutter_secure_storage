@@ -7,6 +7,7 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 
 import java.math.BigInteger;
+import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
@@ -23,7 +24,6 @@ class RSACipher18Implementation {
     private final String KEY_ALIAS;
     private static final String KEYSTORE_PROVIDER_ANDROID = "AndroidKeyStore";
     private static final String TYPE_RSA = "RSA";
-
 
     public RSACipher18Implementation(Context context) throws Exception {
         KEY_ALIAS = context.getPackageName() + ".FlutterSecureStoragePluginKey";
@@ -90,9 +90,28 @@ class RSACipher18Implementation {
         KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER_ANDROID);
         ks.load(null);
 
-        KeyStore.Entry entry = ks.getEntry(KEY_ALIAS, null);
+        // Added hacks for getting KeyEntry:
+        // https://stackoverflow.com/questions/36652675/java-security-unrecoverablekeyexception-failed-to-obtain-information-about-priv
+        // https://stackoverflow.com/questions/36488219/android-security-keystoreexception-invalid-key-blob
+
+        KeyStore.Entry entry = null;
+
+        for (int i = 0; i < 5; i++) {
+            try {
+                entry = ks.getEntry(KEY_ALIAS, null);
+                break;
+            } catch (final Exception ignored) {
+            }
+        }
         if (entry == null) {
-            createKeys(context);
+            try {
+                entry = ks.getEntry(KEY_ALIAS, null);
+            } catch (final Exception ignored) {
+                ks.deleteEntry(KEY_ALIAS);
+            }
+            if (entry == null) {
+                createKeys(context);
+            }
         }
     }
 
